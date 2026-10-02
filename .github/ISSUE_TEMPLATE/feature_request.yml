@@ -1,0 +1,11 @@
+name: 功能建议
+description: 描述希望解决的使用问题
+title: '[建议] '
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: 使用场景、遇到的问题和期望的改善
+      description: 请用虚构信息描述，不上传真实简历或密钥。
+    validations:
+      required: true

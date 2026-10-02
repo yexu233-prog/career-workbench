@@ -1,0 +1,28 @@
+name: 问题反馈
+description: 使用虚构数据描述问题，不上传个人简历、备份或密钥
+title: '[问题] '
+body:
+  - type: markdown
+    attributes:
+      value: 请勿粘贴 API Key、真实简历、真实 JD、个人备份或含个人信息的截图。安全漏洞请使用仓库 Security 页的私密报告入口。
+  - type: input
+    id: environment
+    attributes:
+      label: 环境与版本
+      description: Windows、Edge、应用版本
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤、预期结果与实际结果
+      description: 请使用虚构信息，描述是否可以重复出现。
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私检查
+      options:
+        - label: 我确认反馈中不包含真实个人资料、密钥或个人备份。
+          required: true

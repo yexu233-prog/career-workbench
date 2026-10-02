@@ -1,0 +1,45 @@
+{
+  "name": "career-workbench",
+  "version": "0.1.0-test",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "overrides": {
+    "dingbat-to-unicode": "1.0.2",
+    "@xmldom/xmldom": "0.8.15",
+    "brace-expansion": "5.0.12",
+    "fast-uri@3": "3.1.8",
+    "fast-uri@4": "4.1.5"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others --names SERVICE,WEB --prefix-colors cyan,green \"npm run dev -w @career-workbench/local-service\" \"npm run dev -w @career-workbench/web\"",
+    "build": "npm run build -w @career-workbench/shared && npm run build -w @career-workbench/domain && npm run build -w @career-workbench/database && npm run build -w @career-workbench/web && npm run build -w @career-workbench/local-service",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pdf:regression": "node scripts/pdf-regression.mjs",
+    "pdf:template-regression": "tsx --tsconfig apps/web/tsconfig.json scripts/resume-template-regression.tsx",
+    "check": "npm run typecheck && npm run test && npm run build",
+    "release:test": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1",
+    "release:public": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1 -PublicRelease -ReleaseTag v0.1.0-test",
+    "publication:prepare": "node scripts/prepare-publication.mjs",
+    "release:test:reference-v2": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1 -PackageName career-workbench-0.1.0-test-reference-v2-final"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "concurrently": "10.0.5",
+    "esbuild": "0.28.2",
+    "fake-indexeddb": "6.2.5",
+    "jszip": "3.10.1",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}
