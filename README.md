@@ -27,6 +27,46 @@ flowchart TD
 
 可以从最适合自己的一步开始，AI 辅助不是必选步骤。
 
+## 功能图解
+
+通过三张示意图了解主要操作；全部八张图与文字步骤见[完整图解使用指南](docs/图解使用指南.md)。适用 `0.1.0-test`，示例均为虚构；AI 候选图为未连接真实模型的交互演示。图片小字可点击查看原图，具体操作以应用实际页面为准。
+
+### ① 建立可复用素材
+
+从记录经历开始，积累可以反复使用的求职素材。
+
+<a href="docs/images/guide/0.1.0-test/01-建立素材库.png"><img src="docs/images/guide/0.1.0-test/01-建立素材库.png" width="720" alt="建立素材库：新建素材、选择类别、记录经历并确认自动保存"></a>
+
+[查看①原图](docs/images/guide/0.1.0-test/01-建立素材库.png)
+
+### ④ 组合目标简历
+
+选择岗位版本，组合并独立调整当前简历。
+
+<details>
+<summary>查看简历组合示意</summary>
+
+<a href="docs/images/guide/0.1.0-test/04-组合一份目标简历.png"><img src="docs/images/guide/0.1.0-test/04-组合一份目标简历.png" width="720" alt="组合目标简历：创建项目、选择素材版本、编排并独立调整当前内容"></a>
+
+[查看④原图](docs/images/guide/0.1.0-test/04-组合一份目标简历.png)
+
+</details>
+
+### ⑥ 预览并导出
+
+检查版式与分页，生成文件后选择位置保存。
+
+<details>
+<summary>查看预览导出示意</summary>
+
+<a href="docs/images/guide/0.1.0-test/06-预览并导出.png"><img src="docs/images/guide/0.1.0-test/06-预览并导出.png" width="720" alt="预览导出：检查内容和分页、调整排版、生成 PDF 或 Word 后保存"></a>
+
+[查看⑥原图](docs/images/guide/0.1.0-test/06-预览并导出.png)
+
+</details>
+
+更多操作见[完整图解使用指南](docs/图解使用指南.md)：包括简历导入、岗位版本、可选 AI、个人资料与备份。
+
 ## 启动与安全
 
 Windows 用户可双击 `启动求职工作台.cmd` 启动，双击 `停止求职工作台.cmd` 停止。
@@ -45,9 +85,11 @@ npm run release:test
 
 ## 文档
 
-- `docs/Windows测试版使用说明.md`
-- `docs/架构与隐私说明.md`
-- `docs/许可证核对记录.md`
-- `CONTRIBUTING.md`：贡献规则；`SECURITY.md`：私密漏洞报告。
+- [图解使用指南](docs/图解使用指南.md)：八张示意图与操作步骤。
+- [Windows 使用说明](docs/Windows测试版使用说明.md)：启动、停止、升级与排障。
+- [架构与隐私说明](docs/架构与隐私说明.md)：本机数据与 AI 发送范围。
+- [许可证核对记录](docs/许可证核对记录.md)：项目与第三方许可。
+- [问题反馈](https://github.com/yexu233-prog/career-workbench/issues)（仅使用虚构资料）。
+- [贡献与开发说明](CONTRIBUTING.md)；[安全报告说明](SECURITY.md)。
 
 开发需要 Node.js 24。测试使用虚构数据和模拟 AI，无需服务商密钥。公开包使用 `npm run release:public`，要求干净提交及版本对应标签；本机试包可以使用 `npm run release:test`。问题反馈仅使用虚构内容，不上传真实简历、JD、密钥或备份。
