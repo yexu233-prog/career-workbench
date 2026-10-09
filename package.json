@@ -40,7 +40,7 @@
     "release:test:reference-v2": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1 -PackageName career-workbench-0.1.0-test-reference-v2-final"
   },
   "devDependencies": {
-    "@types/node": "26.2.0",
+    "@types/node": "26.6.4",
     "concurrently": "10.0.5",
     "esbuild": "0.28.2",
     "fake-indexeddb": "6.2.5",
