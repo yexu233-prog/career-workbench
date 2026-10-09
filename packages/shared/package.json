@@ -1,6 +1,6 @@
 {
   "name": "@career-workbench/shared",
-  "version": "0.1.0-test",
+  "version": "0.1.1-test",
   "private": true,
   "type": "module",
   "exports": {

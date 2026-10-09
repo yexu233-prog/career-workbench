@@ -10,6 +10,8 @@ await build({
   outfile: resolve(outputFile),
   bundle: true,
   platform: "node",
+  // Playwright needs its own runtime assets; Mac packaging must copy the pinned package.
+  external: ["playwright-core"],
   format: "esm",
   target: "node24",
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" }

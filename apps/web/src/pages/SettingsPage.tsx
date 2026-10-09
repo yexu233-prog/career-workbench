@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { AI_PROVIDER_GUIDES, type AiProvider, type AiServiceStatus, type HealthResponse, type PdfServiceStatus } from "@career-workbench/shared";
+import { AI_PROVIDER_GUIDES, type AiProvider, type AiServiceStatus, type HealthResponse, type PdfServiceStatus, type RuntimeCapabilities } from "@career-workbench/shared";
+import { readRuntimeCapabilities } from "../services/runtime-client";
 import { isBackupReminderDue, repository, type BackupStatus } from "@career-workbench/database";
 import { FormField } from "../components/FormField";
 import { deleteAiConfig, getAiStatus, saveAiConfig, testAiConnection } from "../services/ai-client";
@@ -71,6 +72,7 @@ function BackupPanel() {
 }
 
 function AiServiceEditor() {
+  const [runtime, setRuntime] = useState<RuntimeCapabilities>();
   const [status, setStatus] = useState<AiServiceStatus>();
   const [provider, setProvider] = useState<AiProvider>("openai");
   const [baseUrl, setBaseUrl] = useState("https://api.openai.com/v1");
@@ -100,15 +102,16 @@ function AiServiceEditor() {
 
   const refresh = async () => {
     const next = await getAiStatus();
-    setStatus(next); setProvider(next.provider); setBaseUrl(next.baseUrl); setModel(next.model); setTimeoutSeconds(next.timeoutMs / 1000);
+    setStatus(next); setProvider(next.provider); setBaseUrl(next.baseUrl); setModel(next.model); setTimeoutSeconds(next.timeoutMs / 1000); setError(next.storageError ?? "");
   };
   useEffect(() => { void refresh().catch((reason) => setError(reason instanceof Error ? reason.message : "读取 AI 设置失败")); }, []);
+  useEffect(() => { void readRuntimeCapabilities().then(setRuntime).catch(() => undefined); }, []);
 
   const save = async () => {
     setBusy("save"); setError(""); setMessage("");
     try {
       await saveAiConfig({ provider, baseUrl, model, timeoutMs: timeoutSeconds * 1000, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) });
-      setApiKey(""); await refresh(); setMessage("AI 配置已使用当前 Windows 账户加密保存。");
+      setApiKey(""); await refresh(); setMessage(`AI 配置已通过${runtime?.secretProtection ?? "当前系统的密钥保护服务"}安全保存。`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "保存失败"); }
     finally { setBusy(""); }
   };
@@ -128,7 +131,7 @@ function AiServiceEditor() {
 
   return <section className="content-panel editor-section">
     <div className="section-heading-row"><div><p className="eyebrow">用户主动调用</p><h2>AI 服务</h2><p>未配置或断网时，所有手动功能仍然可用。</p></div><span className={`source-chip ${status?.configured && !providerChanged ? "current" : "updated"}`}>{providerChanged ? "尚未配置新服务商" : status?.configured ? `已配置 ${status.maskedKey}` : "尚未配置"}</span></div>
-    <div className="privacy-notice">API Key 仅交给本机服务，并使用 Windows DPAPI 加密；不会进入浏览器数据库、日志或备份。发送给第三方 AI 的内容仍受该服务商的数据政策约束。</div>
+    <div className="privacy-notice">API Key 仅交给本机服务，通过{runtime?.secretProtection ?? "当前系统的密钥保护服务"}保护；不会进入浏览器数据库、日志或备份。{runtime?.platform === "macos" ? "钥匙串配置不参与 iCloud 同步；同一系统账户的浏览器共用本机 AI 配置。" : ""}发送给第三方 AI 的内容仍受该服务商的数据政策约束。</div>
     <details className="provider-guides">
       <summary><strong>可用模型／厂商说明</strong><span>4 类接口（含自定义）</span></summary>
       <div className="provider-guide-content">
@@ -157,7 +160,7 @@ function AiServiceEditor() {
     {providerChanged ? <p className="inline-notice">已选择新的服务商。保存前需提供该服务商自己的 API Key；当前已保存的密钥不会用于新服务商。</p> : null}
     {message ? <p className="success-message">{message}</p> : null}{error ? <p className="inline-error">{error}</p> : null}
     {savedSettingsMatch && status?.lastCheck ? <p className="field-hint">最近检查：{new Date(status.lastCheck.at).toLocaleString()} · {status.lastCheck.message}</p> : null}
-    <div className="editor-footer-actions"><button className="text-button danger-text" type="button" disabled={!status?.configured || Boolean(busy)} onClick={() => void remove()}>删除配置</button><button className="secondary-button" type="button" disabled={!savedSettingsMatch || Boolean(busy)} onClick={() => void test()}>测试已保存配置（会产生少量 API 用量）</button><button className="primary-button" type="button" disabled={!canSave || Boolean(busy)} onClick={() => void save()}>{busy === "save" ? "正在保存…" : "安全保存"}</button></div>
+    <div className="editor-footer-actions"><button className="text-button danger-text" type="button" disabled={(!status?.configured && !status?.storageError) || Boolean(busy)} onClick={() => void remove()}>删除配置</button><button className="secondary-button" type="button" disabled={!savedSettingsMatch || Boolean(busy)} onClick={() => void test()}>测试已保存配置（会产生少量 API 用量）</button><button className="primary-button" type="button" disabled={!canSave || Boolean(busy)} onClick={() => void save()}>{busy === "save" ? "正在保存…" : "安全保存"}</button></div>
   </section>;
 }
 
@@ -193,8 +196,8 @@ function DiagnosticsPanel() {
   };
   const formatBytes = (value?: number) => value === undefined ? "未知" : `${(value / 1024 / 1024).toFixed(1)} MB`;
   return <section className="content-panel editor-section">
-    <div className="section-heading-row"><div><p className="eyebrow">仅本机技术信息</p><h2>故障诊断</h2><p>检查本机服务、数据库、存储空间、Edge PDF 和中文字体；不会读取简历正文。</p></div><button className="secondary-button" type="button" disabled={busy} onClick={() => void run()}>{busy ? "正在检查…" : "运行检查"}</button></div>
-    {result ? <div className="diagnostic-grid"><span>本机服务</span><strong>正常 · {result.appVersion}</strong><span>浏览器数据库</span><strong>读写正常</strong><span>Edge PDF</span><strong>{result.pdf.available ? "可用" : "不可用"}</strong><span>中文字体</span><strong>{result.pdf.fontAvailable ? "已就绪" : "缺失，将使用系统字体"}</strong><span>已使用空间</span><strong>{formatBytes(result.storage.usage)}</strong><span>可用配额</span><strong>{formatBytes(result.storage.quota)}</strong><span>持久化存储</span><strong>{result.storage.persisted ? "已授予" : "未授予或未知"}</strong></div> : <p className="muted-empty">尚未运行检查。</p>}
+    <div className="section-heading-row"><div><p className="eyebrow">仅本机技术信息</p><h2>故障诊断</h2><p>检查本机服务、数据库、存储空间、PDF 引擎和中文字体；不会读取简历正文。</p></div><button className="secondary-button" type="button" disabled={busy} onClick={() => void run()}>{busy ? "正在检查…" : "运行检查"}</button></div>
+    {result ? <div className="diagnostic-grid"><span>本机服务</span><strong>正常 · {result.appVersion}</strong><span>浏览器数据库</span><strong>读写正常</strong><span>PDF 引擎</span><strong>{result.pdf.available ? "可用" : "不可用"}</strong><span>中文字体</span><strong>{result.pdf.fontAvailable ? "已就绪" : "缺失，将使用系统字体"}</strong><span>已使用空间</span><strong>{formatBytes(result.storage.usage)}</strong><span>可用配额</span><strong>{formatBytes(result.storage.quota)}</strong><span>持久化存储</span><strong>{result.storage.persisted ? "已授予" : "未授予或未知"}</strong></div> : <p className="muted-empty">尚未运行检查。</p>}
     {error ? <p className="inline-error">{error}</p> : null}
     {result ? <div className="editor-footer-actions"><span className="field-hint">检查时间：{new Date(result.checkedAt).toLocaleString()}</span><button className="secondary-button" type="button" onClick={exportResult}>导出诊断文件</button></div> : null}
   </section>;
@@ -204,6 +207,7 @@ export function SettingsPage() {
   return <section className="page" aria-labelledby="settings-title">
     <header className="page-header"><div><p className="eyebrow">本机配置</p><h1 id="settings-title">设置</h1><p className="page-description">配置 AI 服务并检查本机运行环境。个人资料和照片已移至左侧“个人资料”。</p></div></header>
     <div className="settings-stack">
+      <section className="content-panel editor-section"><h2>浏览器与本机数据</h2><p>简历素材、项目和照片保存在当前浏览器的用户资料中。Safari、Chrome 及不同用户资料不会自动共享数据；请持续使用原浏览器，避免无痕模式。</p><p>需要切换时，先在原浏览器导出完整备份，再在目标浏览器检查并恢复。恢复将替换目标数据，请先保存目标环境的备份；不要清除网站数据。</p></section>
       <section className="content-panel editor-section">
         <div className="section-heading-row">
           <div><p className="eyebrow">首次使用帮助</p><h2>使用教程</h2><p>重新查看产品使用路径，并选择从个人资料或已有简历开始。</p></div>

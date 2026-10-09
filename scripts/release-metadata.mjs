@@ -105,7 +105,7 @@ async function installedRuntimePackages() {
   return result.sort((a, b) => `${a.name}@${a.version}`.localeCompare(`${b.name}@${b.version}`, "en"));
 }
 
-async function createLicenses(packageRoot, nodeSource) {
+export async function createLicenses(packageRoot, nodeSource) {
   const licenseRoot = join(packageRoot, "licenses");
   const projectLicense = await readFile(join(projectRoot, "LICENSE"), "utf8");
   if (!projectLicense.startsWith("MIT License") || !projectLicense.includes("Copyright (c) 2026 叶许")) throw new Error("项目 MIT 许可证与确认的署名不一致");
@@ -134,7 +134,7 @@ async function createLicenses(packageRoot, nodeSource) {
     }
     let sourceNote = "";
     if (!copied.some((name) => /\/(licen[cs]e|copying)(\.|$)/i.test(name))) {
-      if (item.name === "@napi-rs/canvas-win32-x64-msvc" && item.version === "1.0.6") {
+      if (/^@napi-rs\/canvas-(win32-x64-msvc|darwin-arm64|darwin-x64)$/.test(item.name) && item.version === "1.0.6") {
         const parentLicense = join(projectRoot, "node_modules", "@napi-rs", "canvas", "LICENSE");
         if (!(await stat(parentLicense).catch(() => undefined))?.isFile()) throw new Error("canvas 平台包缺少同项目许可证原文");
         await copyFile(parentLicense, join(destination, "LICENSE.from-parent.txt"));

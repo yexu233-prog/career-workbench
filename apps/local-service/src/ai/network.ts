@@ -43,12 +43,43 @@ async function getWindowsProxy(): Promise<string | undefined> {
 }
 
 function isLocalTarget(url: URL): boolean {
-  return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
+  return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1" || url.hostname === "[::1]";
+}
+
+export function parseMacSystemProxy(text: string, protocol: string): string | undefined {
+  const values = new Map<string, string>();
+  // Read only root-level scalar settings, not scoped/nested interface dictionaries.
+  for (const line of text.split(/\r?\n/)) {
+    const pair = line.match(/^ {2}([A-Za-z]+) : ([^\r\n]+)$/);
+    if (pair) values.set(pair[1]!, pair[2]!.trim());
+  }
+  if (values.get("ProxyAutoConfigEnable") === "1" || values.get("ProxyAutoDiscoveryEnable") === "1")
+    throw new Error("当前 Mac 自动代理（PAC / 自动发现）尚不支持，请改用系统 HTTP / HTTPS 代理后重试；未发送 AI 内容");
+  const prefix = protocol === "https:" ? "HTTPS" : "HTTP";
+  if (values.get(`${prefix}Enable`) !== "1") {
+    if (values.get("SOCKSEnable") === "1") throw new Error("当前 Mac SOCKS 代理尚不支持，请改用系统 HTTP / HTTPS 代理后重试；未发送 AI 内容");
+    return undefined;
+  }
+  const host = values.get(`${prefix}Proxy`); const port = Number(values.get(`${prefix}Port`));
+  if (!host || !/^[A-Za-z0-9.:[\]-]+$/.test(host) || !Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error("Mac 系统代理地址或端口无效，请检查网络设置；未发送 AI 内容");
+  const authority = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  try { return new URL(`http://${authority}:${port}`).toString(); }
+  catch { throw new Error("Mac 系统代理地址无效，请检查网络设置；未发送 AI 内容"); }
+}
+
+export async function resolveSystemProxy(target: URL): Promise<string | undefined> {
+  if (isLocalTarget(target)) return undefined;
+  if (process.platform !== "darwin") return getWindowsProxy();
+  let text: string;
+  try { text = (await execFileAsync("/usr/sbin/scutil", ["--proxy"], { encoding: "utf8", timeout: 5_000, maxBuffer: 128 * 1024 })).stdout; }
+  catch { throw new Error("无法读取 Mac 系统代理设置，请检查网络环境后重试；未发送 AI 内容"); }
+  return parseMacSystemProxy(text, target.protocol);
 }
 
 export async function requestWithSystemProxy(url: string, init: AiNetworkRequestInit): Promise<Response> {
   const target = new URL(url);
-  const proxyUrl = isLocalTarget(target) ? undefined : await getWindowsProxy();
+  const proxyUrl = await resolveSystemProxy(target);
   if (!proxyUrl) return fetch(url, init);
   if (!cachedProxyAgent || cachedProxyAgent.url !== proxyUrl) cachedProxyAgent = { url: proxyUrl, agent: new ProxyAgent(proxyUrl) };
   return await undiciFetch(url, { method: init.method, headers: init.headers, signal: init.signal, body: init.body, dispatcher: cachedProxyAgent.agent }) as unknown as Response;

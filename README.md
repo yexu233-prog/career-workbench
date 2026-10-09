@@ -1,10 +1,18 @@
 # 求职工作台
 
-面向 Windows 本机运行的简历素材管理与简历生成工具。
+面向 Windows 和 Mac 本机运行的简历素材管理与简历生成工具。
 
-当前版本为 **0.1.0-test 公开预览版**，目标环境为 Windows 10/11 64 位和 Microsoft Edge，尚未进行代码签名，不宣称正式稳定版。
+当前版本为 **0.1.1-test 公开预览版**，支持 Windows 10/11 64 位 + Microsoft Edge；Mac 目标为 macOS 14 及以上 + Safari / Chrome。Apple Silicon 已由用户在 macOS 14 实机验收，Intel 包为**实验性、未完成实机验证**，不宣称所有系统版本均已测试。尚未进行代码签名或 Apple 公证，不宣称正式稳定版。
 
-从 [官方 Releases 页面](https://github.com/yexu233-prog/career-workbench/releases) 下载 `career-workbench-0.1.0-test.zip` 和同名 `.zip.sha256`。GitHub 自动提供的 Source code 压缩包不是可双击程序。下载 ZIP 后核对 SHA-256，解压到独立目录再启动；详细步骤见 [Windows 使用说明](docs/Windows测试版使用说明.md)。
+从 [官方 Releases 页面](https://github.com/yexu233-prog/career-workbench/releases) 下载对应 ZIP 和同名 `.zip.sha256`：
+
+| 系统 | 文件 | 支持状态 |
+| --- | --- | --- |
+| Windows 64 位 | `career-workbench-0.1.1-test.zip` | Windows 10/11 + Edge |
+| Apple Silicon Mac | `career-workbench-0.1.1-test-mac-arm64.zip` | macOS 14 实机验收通过 |
+| Intel Mac | `career-workbench-0.1.1-test-mac-x64.zip` | 实验性、未完成实机验证 |
+
+GitHub 自动提供的 Source code 压缩包不是可双击程序。下载后核对 SHA-256，解压到独立目录再启动；见 [Windows 使用说明](docs/Windows测试版使用说明.md)和 [Mac 使用说明](docs/Mac测试版使用说明.md)。Mac 无需安装开发工具，Safari 与 Chrome 的业务数据独立，切换时通过完整备份迁移。
 
 ## 当前可用功能
 
@@ -70,6 +78,7 @@ flowchart TD
 ## 启动与安全
 
 Windows 用户可双击 `启动求职工作台.cmd` 启动，双击 `停止求职工作台.cmd` 停止。
+Mac 用户使用对应架构包中的 `启动求职工作台.command` / `停止求职工作台.command`，启动时选择 Safari 或 Chrome。未签名、未公证包可能出现系统授权提示；不要求关闭系统安全保护。
 发布 ZIP 同目录提供 `.zip.sha256`；包内提供 `LICENSE`、`version.json`、`发行说明.md`、`manifest.json` 和 `licenses/`。项目源码采用 MIT，Copyright (c) 2026 叶许；第三方组件保留各自许可证。先核对文件来源和校验值，不要从来源不明的位置运行未签名包，也不要关闭系统安全防护。许可资料见 `docs/许可证核对记录.md`。
 
 业务数据保存在本机；**主动使用 AI 时，所选内容会发送给你配置的服务商，并可能产生费用**。无需 AI 时可以手动完成整理和生成。见 [架构与隐私说明](docs/架构与隐私说明.md)。
@@ -87,9 +96,13 @@ npm run release:test
 
 - [图解使用指南](docs/图解使用指南.md)：八张示意图与操作步骤。
 - [Windows 使用说明](docs/Windows测试版使用说明.md)：启动、停止、升级与排障。
+- [Mac 使用说明](docs/Mac测试版使用说明.md)：芯片选择、浏览器数据、钥匙串及自检。
+- [本版发行说明](docs/发行说明-0.1.1-test.md)；[Mac 验收范围](docs/Mac验收与发布范围-20261009.md)。
 - [架构与隐私说明](docs/架构与隐私说明.md)：本机数据与 AI 发送范围。
 - [许可证核对记录](docs/许可证核对记录.md)：项目与第三方许可。
 - [问题反馈](https://github.com/yexu233-prog/career-workbench/issues)（仅使用虚构资料）。
 - [贡献与开发说明](CONTRIBUTING.md)；[安全报告说明](SECURITY.md)。
 
 开发需要 Node.js 24。测试使用虚构数据和模拟 AI，无需服务商密钥。公开包使用 `npm run release:public`，要求干净提交及版本对应标签；本机试包可以使用 `npm run release:test`。问题反馈仅使用虚构内容，不上传真实简历、JD、密钥或备份。
+
+Mac 双架构包由 Windows 组装：先运行 `node scripts/review-mac-keychain-alternatives.mjs` 与 `node scripts/prepare-mac-assets.mjs` 取得并校验固定组件，再运行 `npm run release:mac:assemble`。公开组装使用 `npm run release:mac:public -- --reference-arm64 <已验收ZIP>`；Intel 始终保留实验性标识。组装和静态检查不能代替 Mac 实机验收，历史 Swift 构建入口不用于本版交付。

@@ -85,10 +85,12 @@ function decodeText(bytes: Uint8Array): { text: string; warning?: string } {
   }
 }
 
-export async function parseJdFileDirect(file: File): Promise<JdParseResult> {
+export async function parseJdFileDirect(file: File, signal?: AbortSignal): Promise<JdParseResult> {
+  signal?.throwIfAborted();
   if (file.size > MAX_JD_FILE_SIZE) throw new Error("JD 文件不能超过 10MB");
   if (!file.size) throw new Error("JD 文件为空");
   const buffer = await file.arrayBuffer();
+  signal?.throwIfAborted();
   const bytes = new Uint8Array(buffer);
   const sourceType = verifyFile(file, bytes);
   const warnings: string[] = [];
@@ -105,18 +107,8 @@ export async function parseJdFileDirect(file: File): Promise<JdParseResult> {
     text = result.value;
     warnings.push(...result.messages.map((message: { message: string }) => `DOCX：${message.message}`));
   } else {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const workerUrl = (await import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url")).default;
-    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-    const document = await pdfjs.getDocument({ data: bytes }).promise;
-    if (document.numPages > 300) throw new Error("PDF 超过 300 页，暂不支持解析");
-    const pages: string[] = [];
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-      const page = await document.getPage(pageNumber);
-      const content = await page.getTextContent();
-      pages.push(content.items.map((item) => "str" in item ? item.str : "").join(" "));
-    }
-    text = pages.join("\n\n");
+    const { extractPdfText } = await import("./pdf-text");
+    text = await extractPdfText(bytes, MAX_JD_TEXT_LENGTH, signal);
     warnings.push("PDF 多栏、页眉或表格的文字顺序可能与原文件不同，请核对后再保存。");
   }
 
@@ -128,15 +120,34 @@ export async function parseJdFileDirect(file: File): Promise<JdParseResult> {
 }
 
 export function parseJdFile(file: File): { promise: Promise<JdParseResult>; cancel: () => void } {
+  // PDF.js itself creates a worker. Running its display API inside our worker
+  // triggers its fallback and leaks its "ready" protocol into our result channel.
+  if (extensionOf(file.name) === "pdf") {
+    const controller = new AbortController();
+    let timer: number;
+    const promise = new Promise<JdParseResult>((resolve, reject) => {
+      timer = window.setTimeout(() => controller.abort(new Error("文件解析超时，请改为粘贴文字")), 60_000);
+      controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true });
+      void parseJdFileDirect(file, controller.signal).then(resolve, reject).finally(() => window.clearTimeout(timer));
+    });
+    return { promise, cancel: () => { window.clearTimeout(timer); controller.abort(new DOMException("文件解析已取消", "AbortError")); } };
+  }
   const worker = new Worker(new URL("./jd-parser.worker.ts", import.meta.url), { type: "module" });
+  let cancel = () => {};
   const promise = new Promise<JdParseResult>((resolve, reject) => {
-    const timeout = window.setTimeout(() => { worker.terminate(); reject(new Error("文件解析超时，请改为粘贴文字")); }, 60_000);
-    worker.onmessage = (event: MessageEvent<{ result?: JdParseResult; error?: string }>) => {
-      window.clearTimeout(timeout); worker.terminate();
-      if (event.data.error) reject(new Error(event.data.error)); else if (event.data.result) resolve(event.data.result); else reject(new Error("文件解析返回了无效结果"));
+    let settled = false;
+    const finish = (result?: JdParseResult, error?: Error) => {
+      if (settled) return;
+      settled = true; window.clearTimeout(timeout); worker.terminate();
+      if (error) reject(error); else if (result) resolve(result); else reject(new Error("文件解析返回了无效结果"));
     };
-    worker.onerror = () => { window.clearTimeout(timeout); worker.terminate(); reject(new Error("文件解析失败，请改为粘贴文字")); };
+    const timeout = window.setTimeout(() => finish(undefined, new Error("文件解析超时，请改为粘贴文字")), 60_000);
+    cancel = () => finish(undefined, new DOMException("文件解析已取消", "AbortError"));
+    worker.onmessage = (event: MessageEvent<{ result?: JdParseResult; error?: string }>) => {
+      finish(event.data.result, event.data.error ? new Error(event.data.error) : undefined);
+    };
+    worker.onerror = () => finish(undefined, new Error("文件解析失败，请改为粘贴文字"));
     worker.postMessage(file);
   });
-  return { promise, cancel: () => worker.terminate() };
+  return { promise, cancel: () => cancel() };
 }

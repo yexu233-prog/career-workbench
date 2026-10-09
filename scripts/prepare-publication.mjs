@@ -4,11 +4,13 @@ import { dirname, join, resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const roots = ["apps", "packages", ".github", "assets/fonts", "third_party/licenses"];
+const roots = ["apps", "packages", ".github", "assets/fonts", "third_party/licenses", "native/macos", "docs/images/guide"];
 const files = [".gitignore", ".gitattributes", "README.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md", "package.json", "package-lock.json", "tsconfig.base.json", "vitest.config.ts", "startup.cmd", "shutdown.cmd", "docs/Windows测试版使用说明.md", "docs/架构与隐私说明.md", "docs/许可证核对记录.md", "docs/发行说明-0.1.0-test.md"];
 const scripts = ["bundle-service.mjs", "build-release.ps1", "start-app.ps1", "stop-app.ps1", "release-metadata.mjs", "verify-release.mjs", "verify-zip-checksum.mjs", "verify-zip-checksum.test.ts", "create-release-zip.mjs", "create-release-zip.test.ts", "pdf-regression.mjs", "resume-template-regression.tsx", "public-release-policy.mjs", "prepare-publication.mjs"];
+files.push("docs/Mac测试版使用说明.md", "docs/Mac验收与发布范围-20261009.md", "docs/图解使用指南.md", "docs/发行说明-0.1.1-test.md");
+scripts.push("assemble-mac-both.mjs", "mac-public-release.mjs", "mac-public-release.test.ts", "mac-package-policy.mjs", "mac-package-policy.test.ts", "mac-prebuilt-inspection.mjs", "mac-prebuilt-inspection.test.ts", "mac-virtual-package.mjs", "mac-virtual-package.test.ts", "mac-keychain-operations.test.ts", "mac-keychain-runner.fixture.mjs", "mac-launcher-contract.test.ts", "build-mac-both.mjs", "verify-mac-package.mjs", "prepare-mac-assets.mjs", "review-mac-keychain-alternatives.mjs", "prepare-mac-build-kit.mjs", "pdf-import-browser-regression.mjs", "pdf-import-fixtures.py");
 const excluded = new Set(["node_modules", "dist", ".git", ".cache", ".vite", "coverage", "tmp", "release"]);
-const allowedExtensions = /\.(?:ts|tsx|mjs|json|css|html|md|txt|yml|ps1|cmd|otf)$/i;
+const allowedExtensions = /\.(?:ts|tsx|mjs|json|css|html|md|txt|yml|ps1|cmd|otf|swift|png)$/i;
 const slash = (path) => path.split(sep).join("/");
 
 export function reviewText(text, path) {
@@ -55,7 +57,7 @@ export async function preparePublication(destination) {
     if (!(await lstat(source)).isFile()) throw new Error(`公开候选缺少文件：${path}`);
     const data = await readFile(source);
     if (!data.length) throw new Error(`公开候选文件为空：${path}`);
-    if (!path.endsWith(".otf")) findings.push(...reviewText(data.toString("utf8"), path));
+    if (!/\.(?:otf|png)$/i.test(path)) findings.push(...reviewText(data.toString("utf8"), path));
     entries.push({ path, bytes: data.length, sha256: createHash("sha256").update(data).digest("hex") });
   }
   await mkdir(dirname(output), { recursive: true });
