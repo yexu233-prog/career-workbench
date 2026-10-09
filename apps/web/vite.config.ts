@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { pdfTextAssets } from "./pdf-assets-plugin.ts";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), pdfTextAssets()],
   server: {
     host: "127.0.0.1",
     port: 5173,

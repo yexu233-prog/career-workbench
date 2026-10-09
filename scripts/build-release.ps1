@@ -1,6 +1,10 @@
-param([string]$PackageName = "career-workbench-0.1.0-test", [switch]$PublicRelease, [string]$ReleaseTag = "")
+param([string]$PackageName = "", [switch]$PublicRelease, [string]$ReleaseTag = "")
 
 $ErrorActionPreference = "Stop"
+if (-not $PackageName) {
+    $releaseVersion = (Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) "package.json") -Raw | ConvertFrom-Json).version
+    $PackageName = "career-workbench-" + $releaseVersion
+}
 if ($PackageName -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$') { throw "Invalid test package name." }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot

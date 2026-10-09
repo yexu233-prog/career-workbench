@@ -7,7 +7,7 @@ import { join } from "node:path";
 export interface PdfRendererStatus { available: boolean; edgeVersion?: string; message: string; }
 export interface PdfRenderOptions { signal?: AbortSignal; }
 export interface PdfRenderer { status(): PdfRendererStatus; render(url: string, options?: PdfRenderOptions): Promise<Buffer>; }
-export type PdfRenderErrorCode = "pdf_cancelled" | "pdf_timeout" | "pdf_output_incomplete" | "pdf_edge_unavailable" | "pdf_render_failed";
+export type PdfRenderErrorCode = "pdf_cancelled" | "pdf_timeout" | "pdf_output_incomplete" | "pdf_edge_unavailable" | "pdf_engine_unavailable" | "pdf_render_failed";
 
 export class PdfRenderError extends Error {
   constructor(public readonly code: PdfRenderErrorCode, message: string, public readonly retryable = false) { super(message); this.name = "PdfRenderError"; }

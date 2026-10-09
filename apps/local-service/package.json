@@ -1,6 +1,6 @@
 {
   "name": "@career-workbench/local-service",
-  "version": "0.1.0-test",
+  "version": "0.1.1-test",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "@career-workbench/shared": "*",
     "@fastify/static": "10.1.3",
     "fastify": "5.12.5",
-    "undici": "8.10.2"
+    "undici": "8.10.2",
+    "playwright-core": "1.64.0"
   }
 }

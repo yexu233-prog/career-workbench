@@ -76,6 +76,7 @@ export function ResumeImportPage() {
   const [restoredAt, setRestoredAt] = useState("");
   const textRef = useRef<HTMLTextAreaElement>(null);
   const cancelParse = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => { const cancel = cancelParse.current; cancelParse.current = undefined; cancel?.(); }, []);
   const sessionEnabled = useRef(true);
   const sessionSnapshot = useRef<ResumeImportSessionInput | undefined>(undefined);
   const sessionWrite = useRef<Promise<unknown>>(Promise.resolve());
@@ -159,11 +160,12 @@ export function ResumeImportPage() {
     const task = parseJdFile(file); cancelParse.current = task.cancel;
     try {
       const result = await task.promise;
+      if (cancelParse.current !== task.cancel) return;
       sessionEnabled.current = true;
       setParsed(result); setText(result.text); setWarnings(result.warnings); setCandidates([]); setRestoredAt("");
     }
-    catch (reason) { setError(reason instanceof Error ? reason.message.replace(/^JD 文件/, "简历文件") : "简历文件解析失败"); }
-    finally { setBusy(""); cancelParse.current = undefined; }
+    catch (reason) { if (cancelParse.current === task.cancel) setError(reason instanceof Error ? reason.message.replace(/^JD 文件/, "简历文件") : "简历文件解析失败"); }
+    finally { if (cancelParse.current === task.cancel) { setBusy(""); cancelParse.current = undefined; } }
   };
 
   const addManualCandidate = () => {

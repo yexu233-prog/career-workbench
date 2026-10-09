@@ -52,6 +52,9 @@
 .resume-template-v2 .resume-paper-entry p, .resume-template-v2 .resume-paper-entry ul, .resume-template-v2 .resume-paper-section > p { line-height: 1; }
 .resume-template-v2 .resume-paper-entry li { margin-top: 1px; }
 
+/* macOS preview and the isolated PDF document use the same bundled Chinese font. */
+html[data-platform="macos"] .resume-paper { font-family: Arial, "Career Workbench Noto Sans SC", sans-serif; }
+
 @media print {
   @page { size: A4 portrait; margin: 0; }
   html, body { margin: 0; padding: 0; background: #ffffff; }

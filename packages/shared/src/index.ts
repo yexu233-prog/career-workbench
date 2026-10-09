@@ -1,5 +1,5 @@
 export const APP_NAME = "求职工作台";
-export const APP_VERSION = "0.1.0-test";
+export const APP_VERSION = "0.1.1-test";
 export const API_VERSION = "1";
 export const LOCAL_HOST = "127.0.0.1";
 export const LOCAL_PORT = 41823;
@@ -10,6 +10,15 @@ export interface HealthResponse {
   appVersion: string;
   apiVersion: string;
   timestamp: string;
+  runtime?: RuntimeCapabilities;
+  instanceId?: string;
+}
+
+export interface RuntimeCapabilities {
+  platform: "windows" | "macos" | "unsupported";
+  secretProtection: string;
+  pdfEngine: string;
+  browserDataScope: "per-browser-profile";
 }
 
 export const AI_TASK_TYPES = ["analyze-job", "generate-version", "generate-interview-note", "recommend-materials", "rewrite-resume", "import-resume"] as const;
@@ -84,6 +93,7 @@ export interface AiTaskResponse {
 }
 
 export interface AiServiceStatus {
+  storageError?: string;
   configured: boolean;
   provider: AiProvider;
   baseUrl: string;
@@ -119,7 +129,7 @@ export interface PdfRenderRequest {
   css: string;
 }
 
-export type PdfErrorCode = "pdf_busy" | "pdf_cancelled" | "pdf_timeout" | "pdf_output_incomplete" | "pdf_edge_unavailable" | "pdf_render_failed";
+export type PdfErrorCode = "pdf_busy" | "pdf_cancelled" | "pdf_timeout" | "pdf_output_incomplete" | "pdf_edge_unavailable" | "pdf_engine_unavailable" | "pdf_render_failed";
 
 export interface PdfErrorResponse {
   error: PdfErrorCode;

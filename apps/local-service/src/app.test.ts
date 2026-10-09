@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { APP_VERSION } from "@career-workbench/shared";
 import { buildApp } from "./app.js";
 import { MemoryAiConfigStore } from "./ai/config-store.js";
 import { PdfRenderError, type PdfRenderer } from "./pdf/edge-renderer.js";
@@ -10,6 +11,31 @@ afterEach(async () => {
 });
 
 describe("local service", () => {
+  it("exposes non-secret instance identity without exposing the stop token", async () => {
+    const app = buildApp({ instanceId: "fictional-instance", controlToken: "private-stop-token" }); openApps.push(app);
+    const response = await app.inject({ method: "GET", url: "/api/health" });
+    expect(response.json().instanceId).toBe("fictional-instance"); expect(response.body).not.toContain("private-stop-token");
+  });
+  it("aborts active AI work before service close", async () => {
+    let started!: () => void; const ready = new Promise<void>((resolve) => { started = resolve; }); let aborted = false;
+    const app = buildApp({ aiConfigStore: new MemoryAiConfigStore({ provider: "openai", baseUrl: "https://example.com/v1", model: "fictional", apiKey: "fictional-key", timeoutMs: 120000 }), aiCaller: async (_config, _task, signal) => {
+      started(); return new Promise((_resolve, reject) => { signal?.addEventListener("abort", () => { aborted = true; reject(new Error("已取消")); }, { once: true }); });
+    } });
+    const status = await app.inject({ method: "GET", url: "/api/ai/status" });
+    const request = app.inject({ method: "POST", url: "/api/ai/test", headers: { "x-ai-client-token": status.json().clientToken } });
+    await ready; await app.close(); await request; expect(aborted).toBe(true);
+  });
+  it("reports Mac capabilities while keychain failure only disables AI configuration", async () => {
+    const fail = async (): Promise<never> => { throw new Error("钥匙串未解锁；手动功能不受影响"); };
+    const app = buildApp({ platform: "darwin", aiConfigStore: { load: fail, save: fail, delete: fail } });
+    openApps.push(app);
+    const health = await app.inject({ method: "GET", url: "/api/health" });
+    expect(health.statusCode).toBe(200); expect(health.json().runtime.platform).toBe("macos");
+    const status = await app.inject({ method: "GET", url: "/api/ai/status" });
+    expect(status.statusCode).toBe(200); expect(status.json()).toMatchObject({ configured: false, storageError: "钥匙串未解锁；手动功能不受影响", maskedKey: "" });
+    const removed = await app.inject({ method: "DELETE", url: "/api/ai/config", headers: { "x-ai-client-token": status.json().clientToken } });
+    expect(removed.statusCode).toBe(400); expect(removed.json().message).toContain("手动功能");
+  });
   it("returns application health", async () => {
     const app = buildApp();
     openApps.push(app);
@@ -19,7 +45,7 @@ describe("local service", () => {
     expect(response.json()).toMatchObject({
       status: "ok",
       appName: "求职工作台",
-      appVersion: "0.1.0-test",
+      appVersion: APP_VERSION,
       apiVersion: "1"
     });
   });

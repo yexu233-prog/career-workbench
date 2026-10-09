@@ -23,14 +23,33 @@ const controlToken = await readControlToken();
 const isProduction = process.env.NODE_ENV === "production" || process.argv.includes("--production");
 const configuredWebRoot = findArgument("--web-root");
 const configuredFontPath = findArgument("--font-file");
+const keychainHelperPath = findArgument("--keychain-helper");
+const keychainScriptPath = findArgument("--keychain-script");
+const chromiumExecutablePath = findArgument("--chromium-executable");
+const instanceId = findArgument("--instance-id");
+if (instanceId && !/^[A-Za-z0-9-]{1,80}$/.test(instanceId)) throw new Error("本机实例编号无效");
+let stopping = false;
+function stopService() {
+  if (stopping) return;
+  stopping = true;
+  void app.close().then(() => process.exit(0), () => process.exit(1));
+}
 let app = buildApp({
   ...(controlToken ? { controlToken } : {}),
   ...(!isProduction ? { allowDevelopmentOrigin: true } : {}),
   ...(configuredFontPath ? { pdfFontPath: resolve(configuredFontPath) } : {}),
+  ...(keychainHelperPath ? { keychainHelperPath: resolve(keychainHelperPath) } : {}),
+  ...(keychainScriptPath ? { keychainScriptPath: resolve(keychainScriptPath) } : {}),
+  ...(chromiumExecutablePath ? { chromiumExecutablePath: resolve(chromiumExecutablePath) } : {}),
+  ...(instanceId ? { instanceId } : {}),
   onShutdown: () => {
-    void app.close().finally(() => process.exit(0));
+    stopService();
   }
 });
+process.once("SIGTERM", stopService);
+process.once("SIGINT", stopService);
+// Packaged Mac controller owns the IPC channel. Closing/killing it stops its service.
+if (process.connected) process.once("disconnect", stopService);
 
 if (isProduction) {
   const currentDirectory = dirname(fileURLToPath(import.meta.url));

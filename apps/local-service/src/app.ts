@@ -4,8 +4,12 @@ import { access, readFile } from "node:fs/promises";
 import type { AiServiceConfigInput, AiServiceStatus, AiTaskRequest, HealthResponse, PdfRenderRequest, PdfServiceStatus } from "@career-workbench/shared";
 import { AI_PROVIDERS, AI_TASK_TYPES, API_VERSION, APP_NAME, APP_VERSION, LOCAL_HOST, LOCAL_PORT, type AiProvider } from "@career-workbench/shared";
 import { callAi } from "./ai/adapter.js";
-import { MemoryAiConfigStore, WindowsDpapiAiConfigStore, type AiConfigStore, type StoredAiConfig } from "./ai/config-store.js";
+import type { AiConfigStore, StoredAiConfig } from "./ai/config-store.js";
+import { createAiConfigStore } from "./ai/config-store-factory.js";
+import { stopMacKeychainHelpers } from "./ai/mac-keychain-store.js";
+import { getRuntimeCapabilities } from "./platform/runtime.js";
 import { EdgePdfRenderer, PdfRenderError, type PdfRenderer } from "./pdf/edge-renderer.js";
+import { MacChromiumPdfRenderer } from "./pdf/mac-chromium-renderer.js";
 
 export interface BuildAppOptions {
   controlToken?: string;
@@ -15,6 +19,11 @@ export interface BuildAppOptions {
   aiCaller?: typeof callAi;
   pdfRenderer?: PdfRenderer;
   pdfFontPath?: string;
+  platform?: NodeJS.Platform;
+  keychainHelperPath?: string;
+  keychainScriptPath?: string;
+  chromiumExecutablePath?: string;
+  instanceId?: string;
 }
 
 function validatePdfRequest(body: unknown): PdfRenderRequest {
@@ -29,8 +38,8 @@ function validatePdfRequest(body: unknown): PdfRenderRequest {
   return input as PdfRenderRequest;
 }
 
-function buildPdfHtml(request: PdfRenderRequest): string {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src 'self'"><title>简历 PDF</title><style>${request.css}</style></head><body>${request.html}</body></html>`;
+function buildPdfHtml(request: PdfRenderRequest, platform = process.platform): string {
+  return `<!doctype html><html lang="zh-CN" data-platform="${platform === "darwin" ? "macos" : "windows"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src 'self'"><title>简历 PDF</title><style>${request.css}</style></head><body>${request.html}</body></html>`;
 }
 
 function validateConfig(body: unknown, current?: StoredAiConfig): StoredAiConfig {
@@ -64,19 +73,26 @@ function validateTask(body: unknown): AiTaskRequest {
 }
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
-  const aiConfigStore = options.aiConfigStore ?? (process.env.NODE_ENV === "test" ? new MemoryAiConfigStore() : new WindowsDpapiAiConfigStore());
+  const aiConfigStore = options.aiConfigStore ?? createAiConfigStore({ platform: options.platform ?? process.platform, test: process.env.NODE_ENV === "test", ...(options.keychainHelperPath ? { keychainHelperPath: options.keychainHelperPath } : {}), ...(options.keychainScriptPath ? { keychainScriptPath: options.keychainScriptPath } : {}) });
   const aiCaller = options.aiCaller ?? callAi;
-  const pdfRenderer = options.pdfRenderer ?? new EdgePdfRenderer();
+  const pdfRenderer = options.pdfRenderer ?? ((options.platform ?? process.platform) === "darwin" ? new MacChromiumPdfRenderer(options.chromiumExecutablePath) : new EdgePdfRenderer());
   const aiClientToken = randomUUID();
   const pdfClientToken = randomUUID();
   const pdfDocuments = new Map<string, string>();
   const pdfJobs = new Map<string, { controller: AbortController; documentId: string }>();
+  const aiControllers = new Set<AbortController>();
   let aiBusy = false;
   let lastCheck: AiServiceStatus["lastCheck"];
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test",
     bodyLimit: 1_048_576,
     trustProxy: false
+  });
+
+  app.addHook("preClose", async () => {
+    for (const job of pdfJobs.values()) job.controller.abort();
+    for (const controller of aiControllers) controller.abort();
+    await stopMacKeychainHelpers();
   });
 
   app.addHook("onRequest", async (request, reply) => {
@@ -109,7 +125,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     appName: APP_NAME,
     appVersion: APP_VERSION,
     apiVersion: API_VERSION,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    runtime: getRuntimeCapabilities(options.platform),
+    ...(options.instanceId ? { instanceId: options.instanceId } : {})
   }));
 
   app.get("/api/pdf/status", async (): Promise<PdfServiceStatus> => {
@@ -161,7 +179,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     const controller = new AbortController();
     if (pdfJobs.has(renderRequest.requestId)) return reply.code(409).send({ error: "pdf_busy", message: "该 PDF 请求已经在生成中" });
     const jobId = randomUUID();
-    pdfDocuments.set(jobId, buildPdfHtml(renderRequest));
+    pdfDocuments.set(jobId, buildPdfHtml(renderRequest, options.platform ?? process.platform));
     pdfJobs.set(renderRequest.requestId, { controller, documentId: jobId });
     request.raw.once("aborted", () => controller.abort());
     try {
@@ -179,11 +197,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const requireAiToken = (headers: Record<string, unknown>) => headers["x-ai-client-token"] === aiClientToken;
 
   app.get("/api/ai/status", async (): Promise<AiServiceStatus> => {
-    const config = await aiConfigStore.load();
+    let config: StoredAiConfig | undefined;
+    let storageError: string | undefined;
+    try { config = await aiConfigStore.load(); }
+    catch (error) { storageError = error instanceof Error ? error.message : "系统密钥存储暂不可用，手动功能不受影响"; }
     return {
       configured: Boolean(config), provider: config?.provider ?? "openai", baseUrl: config?.baseUrl ?? "https://api.openai.com/v1",
       model: config?.model ?? "gpt-5.6-luna", timeoutMs: config?.timeoutMs ?? 120_000,
-      maskedKey: config ? `••••${config.apiKey.slice(-4)}` : "", clientToken: aiClientToken, ...(lastCheck ? { lastCheck } : {})
+      maskedKey: config ? `••••${config.apiKey.slice(-4)}` : "", clientToken: aiClientToken, ...(lastCheck ? { lastCheck } : {}), ...(storageError ? { storageError } : {})
     };
   });
 
@@ -195,7 +216,8 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
   app.delete("/api/ai/config", async (request, reply) => {
     if (!requireAiToken(request.headers)) return reply.code(403).send({ error: "invalid_client_token" });
-    await aiConfigStore.delete(); lastCheck = undefined; return reply.send({ status: "deleted" });
+    try { await aiConfigStore.delete(); lastCheck = undefined; return reply.send({ status: "deleted" }); }
+    catch (error) { return reply.code(400).send({ error: "key_storage_unavailable", message: error instanceof Error ? error.message : "系统密钥删除失败，请检查授权后重试" }); }
   });
 
   const executeTask = async (body: unknown, signal?: AbortSignal) => {
@@ -204,7 +226,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     if (!config) throw new Error("请先在设置中配置 AI 服务");
     const task = validateTask(body);
     aiBusy = true;
-    try { return await aiCaller(config, task, signal); } finally { aiBusy = false; }
+    const controller = new AbortController(); aiControllers.add(controller);
+    const taskSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+    try { return await aiCaller(config, task, taskSignal); } finally { aiControllers.delete(controller); aiBusy = false; }
   };
 
   app.post("/api/ai/test", async (request, reply) => {

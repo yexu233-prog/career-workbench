@@ -7,6 +7,7 @@ import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import "./styles.css";
 import "./resume-document.css";
 import { storageErrorMessage } from "./services/user-errors";
+import { initializeRuntimeDisplay } from "./services/runtime-client";
 
 const mount = document.getElementById("root");
 if (!mount) throw new Error("缺少应用根节点");
@@ -29,4 +30,5 @@ async function start(): Promise<void> {
   }
 }
 
+void initializeRuntimeDisplay();
 void start();

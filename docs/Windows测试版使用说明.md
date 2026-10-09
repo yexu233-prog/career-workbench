@@ -1,6 +1,6 @@
 # 求职工作台 Windows 测试版使用说明
 
-本说明适用于 `career-workbench-0.1.0-test` Windows 公开预览包。目标环境为 Windows 10/11 64 位和 Microsoft Edge。程序只在当前 Windows 账户的电脑上运行，内置 Node.js；简历数据不会随 ZIP 一起移动。本包尚未进行 Windows 代码签名，不宣称正式稳定版。
+本说明适用于 `career-workbench-0.1.1-test` Windows 公开预览包。目标环境为 Windows 10/11 64 位和 Microsoft Edge。程序只在当前 Windows 账户的电脑上运行，内置 Node.js；简历数据不会随 ZIP 一起移动。本包尚未进行 Windows 代码签名，不宣称正式稳定版。
 
 ## 启动、停止与数据位置
 

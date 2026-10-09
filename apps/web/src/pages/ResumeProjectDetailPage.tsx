@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   MATERIAL_CATEGORY_LABELS,
@@ -100,6 +100,7 @@ function ProjectInfoEditor({ autosave }: { autosave: AutosavedDraft<ResumeProjec
   const [parseError, setParseError] = useState("");
   const [parsing, setParsing] = useState(false);
   const cancelParsing = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => { const cancel = cancelParsing.current; cancelParsing.current = undefined; cancel?.(); }, []);
   const [showAiAnalysis, setShowAiAnalysis] = useState(false);
 
   const selectJdFile = async (file?: File) => {
@@ -110,9 +111,9 @@ function ProjectInfoEditor({ autosave }: { autosave: AutosavedDraft<ResumeProjec
     setParsing(true);
     const task = parseJdFile(file);
     cancelParsing.current = task.cancel;
-    try { setParseResult(await task.promise); }
-    catch (error) { setParseError(error instanceof Error ? error.message : "文件解析失败"); }
-    finally { setParsing(false); cancelParsing.current = undefined; }
+    try { const result = await task.promise; if (cancelParsing.current === task.cancel) setParseResult(result); }
+    catch (error) { if (cancelParsing.current === task.cancel) setParseError(error instanceof Error ? error.message : "文件解析失败"); }
+    finally { if (cancelParsing.current === task.cancel) { setParsing(false); cancelParsing.current = undefined; } }
   };
 
   const applyParsedJd = () => {
@@ -283,7 +284,7 @@ function StyleSettingsDrawer({ autosave, onClose }: { autosave: AutosavedDraft<R
     </div>
     {!isReferenceTemplate ? <p className="style-drawer-copy"><button className="secondary-button" type="button" onClick={() => applyStyle(DEFAULT_RESUME_STYLE)}>应用参考简历版式</button></p> : <p className="style-drawer-copy"><button className="secondary-button" type="button" onClick={() => applyStyle(LEGACY_RESUME_STYLE)}>切回旧版排版</button></p>}
     <button className="secondary-button" type="button" onClick={() => applyStyle(isReferenceTemplate ? DEFAULT_RESUME_STYLE : LEGACY_RESUME_STYLE)}>恢复本版默认样式</button>
-    <p className="preview-footnote">正式 PDF 使用相同模板和本机 Edge 生成。缩放只影响页面内查看效果。</p>
+    <p className="preview-footnote">正式 PDF 使用相同模板和本机 PDF 引擎生成。不同浏览器的预览可能有细微差异，请以导出文件为准；缩放只影响页面内查看效果。</p>
   </Modal>;
 }
 
@@ -366,7 +367,7 @@ function ResumeProjectWorkspace({ bundle, onDeleted }: { bundle: ResumeProjectBu
       if (blob.size < 500) throw new Error("生成的 PDF 文件无效，请重试");
       setPdfBlob(blob);
       setPdfResult(`PDF 已生成，共 ${documentModel.pages.length} 页、${(blob.size / 1024).toFixed(0)} KB。请继续选择保存位置。`);
-    } catch (error) { setPdfError(error instanceof DOMException && error.name === "AbortError" ? "已取消 PDF 生成；简历内容未修改" : storageErrorMessage(error, "PDF 生成失败；简历内容未被修改，请检查 Edge 后重试。")); }
+    } catch (error) { setPdfError(error instanceof DOMException && error.name === "AbortError" ? "已取消 PDF 生成；简历内容未修改" : storageErrorMessage(error, "PDF 生成失败；简历内容未被修改，请运行设置页故障诊断后重试。")); }
     finally { if (pdfAbortController.current === controller) pdfAbortController.current = undefined; setPdfBusy(false); }
   };
 
